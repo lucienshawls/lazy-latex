@@ -20,8 +20,7 @@ function getLlmConfig() {
  * - extra instructions from settings (lazy-latex.prompt.extra)
  * - extra instructions from workspace file .lazy-latex.md (if present)
  *
- * We DON'T choose one or the other here — we return both,
- * and the prompt will state that the MD file has higher priority.
+ * We return both and tell the model that the file has higher priority.
  *
  * @returns {Promise<{ fileExtra: string, settingExtra: string }>}
  */
@@ -43,7 +42,6 @@ async function getExtraInstructionsSources() {
       const content = await fs.promises.readFile(promptFilePath, 'utf8');
       fileExtra = content.trim();
     } catch (err) {
-      // It's fine if the file doesn't exist; we just skip it.
       if (err && err.code !== 'ENOENT') {
         console.error('[Lazy LaTeX] Failed to read .lazy-latex.md:', err);
       }
@@ -122,11 +120,11 @@ async function callChatCompletion(systemPrompt, userPrompt) {
  * Uses:
  * - base system rules
  * - .lazy-latex.md (HIGH PRIORITY, if present)
- * - lazy-latex.prompt.extra (lower priority)
+ * - lazy-latex.prompt.extra (LOWER PRIORITY)
  * - optional contextText (recent lines from the document)
  *
  * @param {string} selectedText
- * @param {string} [contextText]  // optional
+ * @param {string} [contextText]
  * @returns {Promise<string>} LaTeX math expression (no surrounding $)
  */
 async function generateLatexFromText(selectedText, contextText) {

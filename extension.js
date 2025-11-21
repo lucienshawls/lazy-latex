@@ -1,7 +1,6 @@
 const vscode = require('vscode');
 const { generateLatexFromText } = require('./llmClient');
 
-
 /**
  * Get context from previous N lines before a given line number.
  * N is read from `lazy-latex.context.lines`.
@@ -35,14 +34,21 @@ function getContextBeforeLine(document, lineNumber) {
   return lines.join('\n');
 }
 
-
 /**
  * Find all ;;...;; (inline) and ;;;...;;; (display) wrappers in a single line.
  * Returns an array of:
  *   { type: 'inline' | 'display', inner: string, start: number, end: number }
- * where start/end are character indices in the line (end = index after the closing delimiters).
+ * where start/end are character indices in the line (end = index after closing delimiters).
+ *
+ * IMPORTANT: if the line starts with '%' (LaTeX comment), we ignore it completely.
  */
 function findMathWrappersInLine(lineText) {
+  const trimmed = lineText.trim();
+  if (trimmed.startsWith('%')) {
+    // Entire line is a comment: do not touch any wrappers here.
+    return [];
+  }
+
   const results = [];
   const n = lineText.length;
   let i = 0;
@@ -125,6 +131,18 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
   // Compute context once per line
   const contextText = getContextBeforeLine(document, lineNumber);
 
+  // Read config for keeping original input as a comment
+  const config = vscode.workspace.getConfiguration('lazy-latex');
+  const keepOriginalComment = config.get('keepOriginalComment', false);
+
+  // Capture the original line text before any edits
+  let originalLineText = '';
+  try {
+    originalLineText = document.lineAt(lineNumber).text;
+  } catch {
+    originalLineText = '';
+  }
+
   const replacements = [];
 
   for (const w of wrappers) {
@@ -136,7 +154,6 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
       const latex = await generateLatexFromText(trimmed, contextText);
       if (!latex) continue;
 
-      // Wrap depending on inline vs display
       const wrappedText =
         w.type === 'inline'
           ? `$${latex}$`
@@ -157,7 +174,18 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
   isApplyingLazyLatexEdit = true;
   try {
     await editor.edit((editBuilder) => {
-      // Apply from right to left so indices remain valid
+      // Optionally insert the original line as a comment above
+      if (
+        keepOriginalComment &&
+        typeof originalLineText === 'string' &&
+        originalLineText.trim().length > 0
+      ) {
+        const commentText = `% [lazy-latex input] ${originalLineText}`;
+        const insertPos = new vscode.Position(lineNumber, 0);
+        editBuilder.insert(insertPos, commentText + '\n');
+      }
+
+      // Apply replacements from right to left so indices remain valid
       const sorted = replacements.sort((a, b) => b.start - a.start);
       for (const r of sorted) {
         const range = new vscode.Range(lineNumber, r.start, lineNumber, r.end);
@@ -240,36 +268,33 @@ function activate(context) {
     if (event.document !== editor.document) return;
     if (isApplyingLazyLatexEdit) return;
 
-    // 🔹 Read the setting each time, so toggling it in Settings works immediately
+    // Check autoReplace flag
     const config = vscode.workspace.getConfiguration('lazy-latex');
     const autoReplaceEnabled = config.get('autoReplace', true);
     if (!autoReplaceEnabled) {
-      // You can log if you want:
-      // console.log('[Lazy LaTeX] autoReplace disabled; ignoring Enter.');
       return;
     }
 
     for (const change of event.contentChanges) {
       if (change.text.includes('\n')) {
-        const lineNumber = change.range.start.line; // line that was just "finished"
+        const lineNumber = change.range.start.line; // line just finished
         try {
           const lineText = event.document.lineAt(lineNumber).text;
           const wrappers = findMathWrappersInLine(lineText);
 
           if (!wrappers.length) {
             console.log(
-              '[Lazy LaTeX] Enter pressed on line',
+              '[Lazy LaTeX] Enter on line',
               lineNumber,
-              '— no wrappers.'
+              '— no wrappers or comment line.'
             );
           } else {
             console.log(
-              '[Lazy LaTeX] Enter pressed on line',
+              '[Lazy LaTeX] Enter on line',
               lineNumber,
               '— found wrappers:',
               wrappers.map((w) => w.type + ':' + w.inner)
             );
-            // Fire-and-forget async processing
             processLineForWrappers(event.document, lineNumber, wrappers).catch(
               (err) => console.error('[Lazy LaTeX] Error processing line:', err)
             );
