@@ -1,7 +1,7 @@
 {
   "name": "lazy-latex",
   "displayName": "Lazy LaTeX",
-  "description": "Write LaTeX lazily using LLM",
+  "description": "Write LaTeX lazily using LLM.",
   "repository": "https://github.com/EricWay1024/lazy-latex",
   "license": "MIT",
   "version": "0.0.1",
@@ -13,8 +13,7 @@
   ],
   "main": "./extension.js",
   "activationEvents": [
-    "onLanguage:latex",
-    "onCommand:lazy-latex.mathToLatex"
+    "onLanguage:latex"
   ],
   "contributes": {
     "commands": [
