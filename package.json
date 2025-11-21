@@ -1,7 +1,9 @@
 {
   "name": "lazy-latex",
-  "displayName": "lazy-latex",
-  "description": "write latex lazily using llm",
+  "displayName": "Lazy LaTeX",
+  "description": "Write LaTeX lazily using LLM",
+  "repository": "https://github.com/EricWay1024/lazy-latex",
+  "license": "MIT",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.106.0"
@@ -61,16 +63,19 @@
     }
   },
   "scripts": {
+    "package": "pnpm vsce package --no-dependencies",
     "lint": "eslint .",
-    "pretest": "npm run lint",
+    "pretest": "pnpm run lint",
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.106.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "eslint": "^9.32.0",
+    "@types/vscode": "^1.106.0",
     "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2"
-  }
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.7.0",
+    "eslint": "^9.32.0"
+  },
+  "packageManager": "pnpm@10.23.0"
 }
