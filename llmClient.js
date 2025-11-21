@@ -1,4 +1,6 @@
 const vscode = require('vscode');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * Read LLM settings from VS Code config.
@@ -14,8 +16,45 @@ function getLlmConfig() {
 }
 
 /**
+ * Read:
+ * - extra instructions from settings (lazy-latex.prompt.extra)
+ * - extra instructions from workspace file .lazy-latex.md (if present)
+ *
+ * We DON'T choose one or the other here — we return both,
+ * and the prompt will state that the MD file has higher priority.
+ *
+ * @returns {Promise<{ fileExtra: string, settingExtra: string }>}
+ */
+async function getExtraInstructionsSources() {
+  const config = vscode.workspace.getConfiguration('lazy-latex');
+  const settingExtraRaw = config.get('prompt.extra') || '';
+  const settingExtra =
+    typeof settingExtraRaw === 'string' ? settingExtraRaw.trim() : '';
+
+  let fileExtra = '';
+
+  const folders = vscode.workspace.workspaceFolders;
+  if (folders && folders.length > 0) {
+    const workspaceRoot = folders[0].uri.fsPath;
+    const promptFilePath = path.join(workspaceRoot, '.lazy-latex.md');
+
+    try {
+      await fs.promises.access(promptFilePath, fs.constants.R_OK);
+      const content = await fs.promises.readFile(promptFilePath, 'utf8');
+      fileExtra = content.trim();
+    } catch (err) {
+      // It's fine if the file doesn't exist; we just skip it.
+      if (err && err.code !== 'ENOENT') {
+        console.error('[Lazy LaTeX] Failed to read .lazy-latex.md:', err);
+      }
+    }
+  }
+
+  return { fileExtra, settingExtra };
+}
+
+/**
  * Call an OpenAI-compatible chat completion endpoint and return the text.
- * This is a low-level helper. We'll build math-specific prompts on top of this.
  *
  * @param {string} systemPrompt
  * @param {string} userPrompt
@@ -42,20 +81,18 @@ async function callChatCompletion(systemPrompt, userPrompt) {
     model,
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
+      { role: 'user', content: userPrompt },
     ],
-    temperature: 0
+    temperature: 0,
   };
 
-  // On modern VS Code (Node >= 18), fetch is available globally.
-  // If you later get "fetch is not defined", we can add a polyfill.
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
+      Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -82,15 +119,16 @@ async function callChatCompletion(systemPrompt, userPrompt) {
 
 /**
  * Higher-level helper: convert informal / natural language math into LaTeX.
- * For now it only uses the selected text; later we’ll add context.
+ * Uses:
+ * - base system rules
+ * - .lazy-latex.md (HIGH PRIORITY, if present)
+ * - lazy-latex.prompt.extra (lower priority)
  *
  * @param {string} selectedText
  * @returns {Promise<string>} LaTeX math expression (no surrounding $)
  */
 async function generateLatexFromText(selectedText) {
-  // Read extra project-specific instructions from config
-  const config = vscode.workspace.getConfiguration('lazy-latex');
-  const extra = config.get('prompt.extra') || '';
+  const { fileExtra, settingExtra } = await getExtraInstructionsSources();
 
   let systemPrompt = `
 You are an assistant that converts informal or natural language math
@@ -103,11 +141,19 @@ Rules:
 - Prefer concise, standard LaTeX math notation.
 `.trim();
 
-  if (extra && typeof extra === 'string') {
-    systemPrompt += `
+  // Attach both sources of extra instructions, with explicit priority.
+  if (fileExtra || settingExtra) {
+    systemPrompt += '\n\nAdditional instructions follow.\n';
 
-Additional project-specific instructions:
-${extra}`.trimEnd();
+    if (fileExtra) {
+      systemPrompt += `\nHIGH PRIORITY from project settings:\n${fileExtra}\n`;
+    }
+
+    if (settingExtra) {
+      systemPrompt += `\nLOWER PRIORITY from user settings:\n${settingExtra}\n`;
+    }
+
+    systemPrompt = systemPrompt.trimEnd();
   }
 
   const userPrompt = `
