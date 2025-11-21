@@ -1,5 +1,5 @@
 const vscode = require('vscode');
-const { generateLatexFromText } = require('./llmClient');
+const { generateLatexFromText, generateLatexForBatch } = require('./llmClient');
 
 /**
  * Get context from previous N lines before a given line number.
@@ -10,7 +10,7 @@ const { generateLatexFromText } = require('./llmClient');
  *
  * @param {vscode.TextDocument} document
  * @param {number} lineNumber
- * @returns {string} joined context lines (may be empty)
+ * @returns {string}
  */
 function getContextBeforeLine(document, lineNumber) {
   const config = vscode.workspace.getConfiguration('lazy-latex');
@@ -40,7 +40,8 @@ function getContextBeforeLine(document, lineNumber) {
  *   { type: 'inline' | 'display', inner: string, start: number, end: number }
  * where start/end are character indices in the line (end = index after closing delimiters).
  *
- * IMPORTANT: if the line starts with '%' (LaTeX comment), we ignore it completely.
+ * IMPORTANT: if the line (after trimming) starts with '%' (LaTeX comment),
+ * we ignore it completely and return [].
  */
 function findMathWrappersInLine(lineText) {
   const trimmed = lineText.trim();
@@ -119,8 +120,8 @@ function findMathWrappersInLine(lineText) {
 let isApplyingLazyLatexEdit = false;
 
 /**
- * Given a document line and the detected wrappers, call the LLM and replace
- * ;;...;; / ;;;...;;; with real LaTeX ($...$ or \[...\]).
+ * Given a document line and the detected wrappers, call the LLM in batch mode
+ * and replace ;;...;; / ;;;...;;; with real LaTeX ($...$ or \[...\]).
  */
 async function processLineForWrappers(document, lineNumber, wrappers) {
   const editor = vscode.window.activeTextEditor;
@@ -128,14 +129,14 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
   if (editor.document !== document) return;
   if (!wrappers || wrappers.length === 0) return;
 
-  // Compute context once per line
-  const contextText = getContextBeforeLine(document, lineNumber);
+  // Compute context once per line (previous lines only)
+  const previousContext = getContextBeforeLine(document, lineNumber);
 
   // Read config for keeping original input as a comment
   const config = vscode.workspace.getConfiguration('lazy-latex');
   const keepOriginalComment = config.get('keepOriginalComment', false);
 
-  // Capture the original line text before any edits
+  // Capture the original line text before any edits (full current line)
   let originalLineText = '';
   try {
     originalLineText = document.lineAt(lineNumber).text;
@@ -143,30 +144,39 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
     originalLineText = '';
   }
 
+  // Prepare descriptions for batch call (inner texts trimmed)
+  const descriptions = wrappers.map((w) => (w.inner || '').trim());
+
+  // Call LLM in batch mode, giving it previous lines + full current line
+  let latexList;
+  try {
+    latexList = await generateLatexForBatch(
+      descriptions,
+      previousContext,
+      originalLineText
+    );
+  } catch (err) {
+    console.error('[Lazy LaTeX] Batch LLM error for line', lineNumber, err);
+    return;
+  }
+
+  // Build replacements from outputs
   const replacements = [];
+  for (let idx = 0; idx < wrappers.length; idx++) {
+    const w = wrappers[idx];
+    const latex = (latexList[idx] || '').trim();
+    if (!latex) continue;
 
-  for (const w of wrappers) {
-    const trimmed = (w.inner || '').trim();
-    if (!trimmed) continue;
+    const wrappedText =
+      w.type === 'inline'
+        ? `$${latex}$`
+        : `\\[\n${latex}\n\\]`;
 
-    try {
-      console.log('[Lazy LaTeX] Generating LaTeX for', w.type, 'wrapper:', trimmed);
-      const latex = await generateLatexFromText(trimmed, contextText);
-      if (!latex) continue;
-
-      const wrappedText =
-        w.type === 'inline'
-          ? `$${latex}$`
-          : `\\[\n${latex}\n\\]`;
-
-      replacements.push({
-        start: w.start,
-        end: w.end,
-        text: wrappedText,
-      });
-    } catch (err) {
-      console.error('[Lazy LaTeX] Failed to generate LaTeX for wrapper:', w, err);
-    }
+    replacements.push({
+      start: w.start,
+      end: w.end,
+      text: wrappedText,
+    });
   }
 
   if (!replacements.length) return;
@@ -204,7 +214,7 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
 function activate(context) {
   console.log('Lazy LaTeX extension is now active.');
 
-  // Manual command: convert current selection
+  // Manual command: convert current selection (single expression mode)
   const commandDisposable = vscode.commands.registerCommand(
     'lazy-latex.mathToLatex',
     async () => {
@@ -224,9 +234,9 @@ function activate(context) {
       }
 
       const selectedText = editor.document.getText(selection);
-      // Context based on the start line of the selection
-      const contextText = getContextBeforeLine(editor.document, selection.start.line);
 
+      // Context based on the start line of the selection (previous lines only)
+      const contextText = getContextBeforeLine(editor.document, selection.start.line);
 
       vscode.window.setStatusBarMessage(
         'Lazy LaTeX: generating LaTeX with LLM...',
@@ -309,7 +319,7 @@ function activate(context) {
   context.subscriptions.push(changeDisposable);
 }
 
-function deactivate() { }
+function deactivate() {}
 
 module.exports = {
   activate,
