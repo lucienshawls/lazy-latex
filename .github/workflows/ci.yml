@@ -1,4 +1,4 @@
-name: Release Pipeline
+name: Lazy LaTeX Pipeline
 
 on:
   push:
@@ -6,23 +6,30 @@ on:
       - master
   pull_request:
   workflow_dispatch:
-    # inputs:
-    #   publish_to_marketplace:
-    #     description: "Publish to VSCode Marketplace"
-    #     default: false
-    #     required: true
-    #     type: boolean
-    #   version_tag:
-    #     description: "Version tag for the release (e.g., v1.0.0)"
-    #     required: true
-    #     type: string
+    inputs:
+      release_level:
+        description: "Release level (choose none to skip version bump)"
+        required: true
+        type: choice
+        default: none
+        options:
+          - none
+          - patch
+          - minor
+          - major
+
+      publish_to_marketplace:
+        description: "Publish to VSCode Marketplace"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
-  package_extension:
-    name: Package VSCode Extension
+  package_and_publish:
+    name: Package and Publish
     runs-on: ubuntu-latest
 
     steps:
@@ -44,11 +51,54 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Bump version and commit changes
+        id: bump_version
+        if: >
+          github.ref_name == 'master' &&
+          github.event_name == 'workflow_dispatch' &&
+          inputs.release_level != 'none'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # bump version (creates commit + tag automatically)
+          VERSION_TAG=$(pnpm version ${{ inputs.release_level }} --message "chore(release): v%s")
+
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_OUTPUT
+
+          # push commit and tag
+          git push --follow-tags
+
       - name: Package extension
-        run: pnpm package
+        run: |
+          pnpm package
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
           name: lazy-latex-extension
           path: "*.vsix"
+
+      - name: Publish release to GitHub
+        if: >
+          github.ref_name == 'master' &&
+          github.event_name == 'workflow_dispatch' &&
+          inputs.release_level != 'none'
+        uses: softprops/action-gh-release@v2.4.2
+        with:
+          name: Release ${{ steps.bump_version.outputs.VERSION_TAG }}
+          tag_name: ${{ steps.bump_version.outputs.VERSION_TAG }}
+          generate_release_notes: true
+          files: |
+            *.vsix
+
+      - name: Publish extension to marketplace
+        if: >
+          github.ref_name == 'master' &&
+          github.event_name == 'workflow_dispatch' &&
+          inputs.release_level != 'none' &&
+          inputs.publish_to_marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          pnpm vsce publish -p ${{ env.VSCE_PAT }} --packagePath *.vsix

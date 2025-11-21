@@ -62,7 +62,7 @@
     }
   },
   "scripts": {
-    "package": "pnpm vsce package --no-dependencies",
+    "package": "pnpm vsce package --no-dependencies --githubBranch master",
     "lint": "eslint .",
     "pretest": "pnpm run lint",
     "test": "vscode-test"
