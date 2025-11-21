@@ -129,6 +129,10 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
   if (editor.document !== document) return;
   if (!wrappers || wrappers.length === 0) return;
 
+  const status = vscode.window.setStatusBarMessage(
+    'Lazy LaTeX: auto-generating LaTeX for this line...'
+  );
+
   // Compute context once per line (previous lines only)
   const previousContext = getContextBeforeLine(document, lineNumber);
 
@@ -203,6 +207,7 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
       }
     });
   } finally {
+    status.dispose();
     isApplyingLazyLatexEdit = false;
   }
 }
@@ -238,9 +243,8 @@ function activate(context) {
       // Context based on the start line of the selection (previous lines only)
       const contextText = getContextBeforeLine(editor.document, selection.start.line);
 
-      vscode.window.setStatusBarMessage(
-        'Lazy LaTeX: generating LaTeX with LLM...',
-        3000
+      const status = vscode.window.setStatusBarMessage(
+        'Lazy LaTeX: generating LaTeX with LLM...'
       );
 
       let latex;
@@ -252,7 +256,10 @@ function activate(context) {
           'Lazy LaTeX: failed to generate LaTeX. Check your API key / endpoint and try again.'
         );
         return;
+      } finally {
+        status.dispose();
       }
+
 
       if (!latex) {
         vscode.window.showErrorMessage(
@@ -265,7 +272,7 @@ function activate(context) {
         editBuilder.replace(selection, latex);
       });
 
-      vscode.window.showInformationMessage('Lazy LaTeX: converted selection to LaTeX.');
+      // vscode.window.showInformationMessage('Lazy LaTeX: converted selection to LaTeX.');
     }
   );
 
@@ -319,7 +326,7 @@ function activate(context) {
   context.subscriptions.push(changeDisposable);
 }
 
-function deactivate() {}
+function deactivate() { }
 
 module.exports = {
   activate,
