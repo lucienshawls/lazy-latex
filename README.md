@@ -1,65 +1,165 @@
-# lazy-latex README
+# Lazy LaTeX
 
-This is the README for your extension "lazy-latex". After writing up a brief description, we recommend including the following sections.
+Write LaTeX math lazily using an LLM.
 
-## Features
+Lazy LaTeX lets you type fuzzy / natural language math and turns it into real LaTeX formulas, either:
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- **Automatically**, using special wrappers like `;;...;;` and `;;;...;;;` when you press Enter in a `.tex` file.
+- **Manually**, via a command that converts the current selection.
 
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+You bring your own LLM (OpenAI-compatible HTTP API), and you can tune notation conventions per project with a simple text file.
 
 ---
 
-## Working with Markdown
+## Features
 
-You can author your README using Visual Studio Code.  Here are some useful editor keyboard shortcuts:
+### 1. Auto-convert `;;...;;` and `;;;...;;;` on Enter
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux)
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux)
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets
+In LaTeX files (`.tex`, language `latex`):
 
-## For more information
+- `;; ... ;;` → **inline math**
+- `;;; ... ;;;` → **display math**
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+Example:
 
-**Enjoy!**
+```tex
+This is ;;integral from 0 to 1 of x squared dx;;.
+
+And here is display:
+
+;;;sum from i=1 to n of a_i;;;
+```
+
+After you press **Enter** on that line, Lazy LaTeX will:
+
+- Call your configured LLM
+- Replace wrappers with real LaTeX:
+
+```
+This is $\int_0^1 x^2\,dx$.
+
+And here is display:
+
+\[
+\sum_{i=1}^n a_i
+\]
+```
+
+Auto replacement can be enabled/disabled via a setting.
+
+------
+
+### 2. Manual command: convert selection to LaTeX
+
+You can also select any text (natural language or messy LaTeX) and run:
+
+- **Command Palette** → `Lazy LaTeX: Convert selection to math`
+- Or the default keybinding: **Ctrl+Alt+M**
+
+The selected text is replaced by a single LaTeX math expression (no surrounding `$`).
+
+------
+
+### 3. Per-project conventions with `.lazy-latex.md`
+
+In each project, you can create a file in the workspace root:
+
+```
+.lazy-latex.md
+```
+
+Write any instructions you want the LLM to follow for this project, for example:
+
+```
+# LaTeX conventions for this project
+
+- Use \mathbf for vectors.
+- Use \mathbb for number sets.
+- Use \mathrm{d}x in integrals.
+- f(x) always denotes a probability density function on \mathbb{R}.
+```
+
+Lazy LaTeX will read this file and include it in the system prompt as **high-priority project settings**.
+
+------
+
+### 4. Extra instructions via VS Code settings
+
+There is also a user/workspace setting:
+
+- `lazy-latex.prompt.extra`
+
+Anything you put there is appended to the system prompt as **lower-priority user settings**.
+
+If both exist:
+
+- `.lazy-latex.md` is treated as **HIGH PRIORITY**
+- `lazy-latex.prompt.extra` is treated as **LOWER PRIORITY**
+
+The system prompt roughly looks like:
+
+```
+Rules:
+- Output ONLY the LaTeX math expression itself.
+- No $ or $$.
+- No explanations or comments.
+
+Additional instructions follow.
+
+HIGH PRIORITY from project settings:
+<contents of .lazy-latex.md>
+
+LOWER PRIORITY from user settings:
+<lazy-latex.prompt.extra>
+```
+
+------
+
+## Configuration
+
+Open **Settings** → search for `Lazy LaTeX`.
+
+Available options:
+
+- **`lazy-latex.autoReplace`** (boolean, default `true`)
+   Automatically convert `;;...;;` and `;;;...;;;` wrappers on Enter in `.tex` files.
+- **`lazy-latex.llm.endpoint`** (string)
+   HTTP endpoint for an OpenAI-compatible chat completion API.
+   Example: `https://api.openai.com/v1/chat/completions`
+- **`lazy-latex.llm.apiKey`** (string, secret)
+   API key for your LLM provider.
+- **`lazy-latex.llm.model`** (string)
+   Model name used for generation, e.g. `gpt-4o-mini`.
+- **`lazy-latex.prompt.extra`** (string)
+   Extra system-level instructions (lower priority than `.lazy-latex.md`).
+
+------
+
+## Requirements
+
+- VS Code `^1.106.0`
+- An OpenAI-compatible chat completion endpoint
+- A valid API key and model name
+
+------
+
+## Usage
+
+1. Open a folder with your LaTeX project in VS Code.
+2. (Optional) Create `.lazy-latex.md` in the project root and describe your notation conventions.
+3. Configure:
+   - `Lazy-latex › Llm: Endpoint`
+   - `Lazy-latex › Llm: Api Key`
+   - `Lazy-latex › Llm: Model`
+4. In a `.tex` file:
+   - Type `;;your math description;;` or `;;;your display math description;;;`
+   - Press **Enter** → wrappers are replaced with LaTeX.
+5. Or manually:
+   - Select text → `Lazy LaTeX: Convert selection to math` (Ctrl+Alt+M).
+
+------
+
+## Notes
+
+- Auto-replacement only runs in files with language id `latex` (e.g. `.tex`).
+- The extension does not store your API key or send telemetry; it just forwards your prompts to the configured endpoint.
