@@ -225,6 +225,10 @@ Available options:
    - `Lazy-latex › Llm: Endpoint`
    - `Lazy-latex › Llm: Api Key`
    - `Lazy-latex › Llm: Model`
+4. (Optional but recommended) Adjust:
+   - `Lazy-latex › Prompt: Extra` or `.lazy-latex.md` for your notation conventions
+   - `Lazy-latex › Context: Lines` if you want more/less surrounding context
+   - `Lazy-latex › Keep Original Comment` if you want to keep the original wrapper line as a comment
 4. In a `.tex` file:
    - Type `;;your math description;;` or `;;;your display math description;;;`
    - Press **Enter** → wrappers are replaced with LaTeX.
