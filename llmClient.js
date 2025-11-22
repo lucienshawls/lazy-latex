@@ -247,7 +247,96 @@ Do NOT include numbering, labels, comments, or explanations.
   return outputs;
 }
 
+
+/**
+ * "Insert anything" mode:
+ * Given a natural language instruction and context, generate arbitrary
+ * LaTeX/Markdown text to insert in place of a ;;;;...;;;; wrapper.
+ *
+ * @param {string} instruction
+ * @param {string} [previousContextText]
+ * @param {string} [rawCurrentLine]
+ * @param {string} [docLanguage] e.g. 'latex' or 'markdown'
+ * @returns {Promise<string>}
+ */
+async function generateAnythingFromInstruction(
+  instruction,
+  previousContextText,
+  rawCurrentLine,
+  docLanguage
+) {
+  const { fileExtra, settingExtra } = await getExtraInstructionsSources();
+
+  let systemPrompt = `
+You are an assistant that edits LaTeX or Markdown documents by inserting
+or rewriting content based on natural language instructions.
+
+Rules:
+- Use the document type and context to choose appropriate output.
+- Output ONLY the text that should be inserted in place of the wrapper.
+- Do NOT include surrounding quotes, commentary, or explanations.
+- Do NOT add backticks or code fences unless the instruction explicitly asks for them.
+- For LaTeX documents, prefer valid LaTeX code (including environments).
+- For Markdown documents, prefer valid Markdown (including fenced code blocks).
+`.trim();
+
+  if (fileExtra || settingExtra) {
+    systemPrompt += '\n\nAdditional instructions follow.\n';
+
+    if (fileExtra) {
+      systemPrompt += `\nHIGH PRIORITY from project settings:\n${fileExtra}\n`;
+    }
+
+    if (settingExtra) {
+      systemPrompt += `\nLOWER PRIORITY from user settings:\n${settingExtra}\n`;
+    }
+
+    systemPrompt = systemPrompt.trimEnd();
+  }
+
+  const contextParts = [];
+
+  if (previousContextText && previousContextText.trim().length > 0) {
+    contextParts.push(
+      `Previous lines from the current document:\n"""` +
+        `\n${previousContextText}\n"""`
+    );
+  }
+
+  if (rawCurrentLine && rawCurrentLine.trim().length > 0) {
+    contextParts.push(
+      `Current line (raw, with wrappers):\n"""` +
+        `\n${rawCurrentLine}\n"""`
+    );
+  }
+
+  const contextBlock = contextParts.length
+    ? `The following is context from the current document.\n` +
+      `Use it to interpret the instruction, but do not rewrite it unless asked.\n\n` +
+      contextParts.join('\n\n')
+    : '';
+
+  const languageInfo = docLanguage ? `Document languageId: ${docLanguage}\n` : '';
+
+  const userPrompt = `
+${languageInfo}${contextBlock ? contextBlock + '\n\n' : ''}
+Instruction (from a ;;;;...;;;; wrapper):
+"""
+${instruction}
+"""
+
+Based on this instruction and the context, produce the exact text that should
+replace the wrapper in the document.
+Do not add any explanatory sentences around it.
+`.trim();
+
+  const result = await callChatCompletion(systemPrompt, userPrompt);
+  return result;
+}
+
+
 module.exports = {
   generateLatexFromText,
   generateLatexForBatch,
+  generateAnythingFromInstruction,
 };

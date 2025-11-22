@@ -1,6 +1,9 @@
 const vscode = require('vscode');
-const { generateLatexFromText, generateLatexForBatch } = require('./llmClient');
-
+const {
+  generateLatexFromText,
+  generateLatexForBatch,
+  generateAnythingFromInstruction,
+} = require('./llmClient');
 /**
  * Get output math delimiters for the given document.
  *
@@ -105,8 +108,15 @@ function findMathWrappersInLine(lineText) {
       }
       const count = j - i;
 
-      if (count === 2 || count === 3) {
-        const type = count === 2 ? 'inline' : 'display';
+      if (count === 2 || count === 3 || count === 4) {
+        let type;
+        if (count === 2) {
+          type = 'inline';
+        } else if (count === 3) {
+          type = 'display';
+        } else {
+          type = 'anything'; // ;;;;...;;;; → insert-anything mode
+        }
         const contentStart = j;
 
         // Look for matching closing delimiter of the same length
@@ -191,58 +201,91 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
     originalLineText = '';
   }
 
-  // Prepare descriptions for batch call (inner texts trimmed)
-  const descriptions = wrappers.map((w) => (w.inner || '').trim());
+    // Partition wrappers: math vs "anything"
+  const mathWrappers = wrappers.filter(
+    (w) => w.type === 'inline' || w.type === 'display'
+  );
+  const anythingWrappers = wrappers.filter((w) => w.type === 'anything');
 
-  // Call LLM in batch mode, giving it previous lines + full current line
-  let latexList;
-  try {
-    latexList = await generateLatexForBatch(
-      descriptions,
-      previousContext,
-      originalLineText
-    );
-  } catch (err) {
-    console.error('[Lazy LaTeX] Batch LLM error for line', lineNumber, err);
-    return;
-  }
-
-  // Build replacements from outputs
   const replacements = [];
-  for (let idx = 0; idx < wrappers.length; idx++) {
-    const w = wrappers[idx];
-    const latex = (latexList[idx] || '').trim();
-    if (!latex) continue;
 
-    let wrappedText;
-    if (w.type === 'inline') {
-      wrappedText = `${outputDelims.inline.open}${latex}${outputDelims.inline.close}`;
-    } else {
-      // Base display block
-      let displayBlock = `${outputDelims.display.open}\n${latex}\n${outputDelims.display.close}`;
+  // 1) Handle math wrappers via batch call (same as before, but only math)
+  if (mathWrappers.length > 0) {
+    const mathDescriptions = mathWrappers.map((w) => (w.inner || '').trim());
 
-      // If there is non-whitespace text before the display wrapper on this line,
-      // insert a newline *before* the block so we get:
-      //   text text
-      //   $$
-      //   formula
-      //   $$
-      //
-      // This applies regardless of language (LaTeX or Markdown) and
-      // regardless of which display delimiters are used (\\[...\\] or $$...$$).
-      const prefix = (originalLineText || '').slice(0, w.start);
-      if (prefix.trim().length > 0) {
-        displayBlock = '\n' + displayBlock;
-      }
-
-      wrappedText = displayBlock;
+    let latexList;
+    try {
+      latexList = await generateLatexForBatch(
+        mathDescriptions,
+        previousContext,
+        originalLineText
+      );
+    } catch (err) {
+      console.error('[Lazy LaTeX] Batch LLM error for line', lineNumber, err);
+      // We still allow "anything" wrappers (if any) to proceed
+      latexList = [];
     }
 
-    replacements.push({
-      start: w.start,
-      end: w.end,
-      text: wrappedText,
-    });
+    for (let idx = 0; idx < mathWrappers.length; idx++) {
+      const w = mathWrappers[idx];
+      const latex = (latexList[idx] || '').trim();
+      if (!latex) continue;
+
+      let wrappedText;
+      if (w.type === 'inline') {
+        wrappedText = `${outputDelims.inline.open}${latex}${outputDelims.inline.close}`;
+      } else {
+        // Display math: ensure it's on its own line if needed
+        let displayBlock = `${outputDelims.display.open}\n${latex}\n${outputDelims.display.close}\n`;
+
+        const prefix = (originalLineText || '').slice(0, w.start);
+        if (prefix.trim().length > 0) {
+          displayBlock = '\n' + displayBlock;
+        }
+
+        wrappedText = displayBlock;
+      }
+
+      replacements.push({
+        start: w.start,
+        end: w.end,
+        text: wrappedText,
+      });
+    }
+  }
+
+  // 2) Handle "anything" wrappers one by one
+  if (anythingWrappers.length > 0) {
+    for (const w of anythingWrappers) {
+      const instruction = (w.inner || '').trim();
+      if (!instruction) continue;
+
+      let generated;
+      try {
+        generated = await generateAnythingFromInstruction(
+          instruction,
+          previousContext,
+          originalLineText,
+          document.languageId
+        );
+      } catch (err) {
+        console.error(
+          '[Lazy LaTeX] LLM error in insert-anything mode on line',
+          lineNumber,
+          err
+        );
+        continue;
+      }
+
+      const text = (generated || '').trim();
+      if (!text) continue;
+
+      replacements.push({
+        start: w.start,
+        end: w.end,
+        text,
+      });
+    }
   }
 
   if (!replacements.length) return;
