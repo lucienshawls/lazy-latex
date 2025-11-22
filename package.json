@@ -14,7 +14,8 @@
   ],
   "main": "./extension.js",
   "activationEvents": [
-    "onLanguage:latex"
+    "onLanguage:latex",
+    "onLanguage:markdown"
   ],
   "contributes": {
     "commands": [
@@ -79,6 +80,24 @@
           "type": "boolean",
           "default": false,
           "description": "If enabled, when ;;...;; or ;;;...;;; is auto-replaced, insert a preceding LaTeX comment line containing the original input line."
+        },
+        "lazy-latex.output.latex.inlineStyle": {
+          "type": "string",
+          "enum": [
+            "dollar",
+            "paren"
+          ],
+          "default": "dollar",
+          "description": "Inline math delimiters in LaTeX output. 'dollar' = $...$, 'paren' = \\(...\\)."
+        },
+        "lazy-latex.output.latex.displayStyle": {
+          "type": "string",
+          "enum": [
+            "brackets",
+            "dollars"
+          ],
+          "default": "brackets",
+          "description": "Display math delimiters in LaTeX output. 'brackets' = \\[...\\], 'dollars' = $$...$$."
         }
       }
     }

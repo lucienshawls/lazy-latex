@@ -2,6 +2,45 @@ const vscode = require('vscode');
 const { generateLatexFromText, generateLatexForBatch } = require('./llmClient');
 
 /**
+ * Get output math delimiters for the given document.
+ *
+ * - LaTeX: configurable via settings
+ * - Markdown: fixed to $...$ and $$...$$
+ *
+ * @param {vscode.TextDocument} document
+ * @returns {{ inline: { open: string, close: string }, display: { open: string, close: string } }}
+ */
+function getOutputDelimiters(document) {
+  const lang = document.languageId;
+
+  // Markdown: always $ / $$
+  if (lang === 'markdown') {
+    return {
+      inline: { open: '$', close: '$' },
+      display: { open: '$$', close: '$$' },
+    };
+  }
+
+  // Default: LaTeX
+  const config = vscode.workspace.getConfiguration('lazy-latex');
+  const inlineStyle = config.get('output.latex.inlineStyle', 'dollar');
+  const displayStyle = config.get('output.latex.displayStyle', 'brackets');
+
+  const inline =
+    inlineStyle === 'paren'
+      ? { open: '\\(', close: '\\)' }
+      : { open: '$', close: '$' };
+
+  const display =
+    displayStyle === 'dollars'
+      ? { open: '$$', close: '$$' }
+      : { open: '\\[', close: '\\]' };
+
+  return { inline, display };
+}
+
+
+/**
  * Get context from previous N lines before a given line number.
  * N is read from `lazy-latex.context.lines`.
  *
@@ -139,6 +178,7 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
   // Read config for keeping original input as a comment
   const config = vscode.workspace.getConfiguration('lazy-latex');
   const keepOriginalComment = config.get('keepOriginalComment', false);
+  const outputDelims = getOutputDelimiters(document);
 
   // Capture the original line text before any edits (full current line)
   let originalLineText = '';
@@ -171,10 +211,29 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
     const latex = (latexList[idx] || '').trim();
     if (!latex) continue;
 
-    const wrappedText =
-      w.type === 'inline'
-        ? `$${latex}$`
-        : `\\[\n${latex}\n\\]`;
+    let wrappedText;
+    if (w.type === 'inline') {
+      wrappedText = `${outputDelims.inline.open}${latex}${outputDelims.inline.close}`;
+    } else {
+      // Base display block
+      let displayBlock = `${outputDelims.display.open}\n${latex}\n${outputDelims.display.close}`;
+
+      // If there is non-whitespace text before the display wrapper on this line,
+      // insert a newline *before* the block so we get:
+      //   text text
+      //   $$
+      //   formula
+      //   $$
+      //
+      // This applies regardless of language (LaTeX or Markdown) and
+      // regardless of which display delimiters are used (\\[...\\] or $$...$$).
+      const prefix = (originalLineText || '').slice(0, w.start);
+      if (prefix.trim().length > 0) {
+        displayBlock = '\n' + displayBlock;
+      }
+
+      wrappedText = displayBlock;
+    }
 
     replacements.push({
       start: w.start,
@@ -194,7 +253,14 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
         typeof originalLineText === 'string' &&
         originalLineText.trim().length > 0
       ) {
-        const commentText = `% [lazy-latex input] ${originalLineText}`;
+        let commentText;
+        if (document.languageId === 'markdown') {
+          // HTML-style comment for Markdown
+          commentText = `<!-- [lazy-latex input] ${originalLineText} -->`;
+        } else {
+          // LaTeX-style comment (default)
+          commentText = `% [lazy-latex input] ${originalLineText}`;
+        }
         const insertPos = new vscode.Position(lineNumber, 0);
         editBuilder.insert(insertPos, commentText + '\n');
       }
@@ -284,6 +350,10 @@ function activate(context) {
     if (!editor) return;
     if (event.document !== editor.document) return;
     if (isApplyingLazyLatexEdit) return;
+    const lang = editor.document.languageId;
+    if (lang !== 'latex' && lang !== 'markdown') {
+      return;
+    }
 
     // Check autoReplace flag
     const config = vscode.workspace.getConfiguration('lazy-latex');
