@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+
+## [0.1.3] - 2025-11-22
+### Added
+;;;;...;;;; insert-anything mode: use four semicolons as a wrapper to ask the LLM to insert arbitrary LaTeX/Markdown content based on the surrounding context. This can be used for things like short proofs, summaries, diagram snippets, or boilerplate you don’t remember how to write.
+### Changed
+When LLM calls fail, a friendly error dialog is shown. Errors are logged to the “Lazy LaTeX” output channel with provider, endpoint, model, status, and provider response to make debugging configuration issues easier.
+
+
+## [0.1.2] - 2025-11-22
+### Added
+This extension now has an icon.
+
 ## [0.1.1] - 2025-11-22
 ### Added
 - Configurable LaTeX output delimiters (`$...$` vs `\(...\)` and `\[...\]` vs `$$...$$`).

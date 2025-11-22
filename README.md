@@ -2,34 +2,45 @@
 
 Write LaTeX math *lazily* using your favorite LLM.
 
-Type fuzzy / natural language math between tiny markers, hit **Enter**, and Lazy LaTeX turns it into real LaTeX — right inside your `.tex` or `.md` file.
+Type fuzzy / natural language math between tiny markers, hit **Enter**, and Lazy LaTeX turns it into real LaTeX — right inside your `.tex` or `.md` file. It also offers a mode to **insert arbitrary content** (proofs, summaries, diagrams, boilerplate). Featured with customizable style control and context awareness. Supports any OpenAI-style API (including Google Gemini) and Anthropic Claude.
 
 ------
 
-## What it does (in 10 seconds)
+## What it does
 
-In a LaTeX or Markdown file, you can write:
+
+With this extension, you no longer need to follow the LaTeX syntax strictly. All you need to do is write LaTeX in a fuzzy way, or simply describe the formulas you want.
+
+In a LaTeX or Markdown file, you can, for example, write:
 
 ```tex
-This is ;;integral from 0 to 1 of x squared dx;;.
-
-;;;sum from i=1 to n of a_i;;;
+Consider the function ;;f (x) = (x+2 if x >= 0, 2 otherwise);;. Its definite integral from $-2$ to $2$ is ;;;int from -2 to 2 f(x) dx;;; Now consider the function ;;g = f + 1 but same format as f;;.
 ```
+
 
 Press **Enter** and it becomes:
 
 ```tex
-This is $\int_0^1 x^2\,dx$.
-
-\[
-\sum_{i=1}^n a_i
-\]
+Consider the function $f(x) = \begin{cases} x + 2 & \text{if } x \geq 0 \\ 2 & \text{otherwise} \end{cases}$. Its definite integral from $-2$ to $2$ is 
+$$
+\int_{-2}^{2} f(x) \, dx
+$$
+Now consider the function $g(x) = \begin{cases} x + 3 & \text{if } x \geq 0 \\ 3 & \text{otherwise} \end{cases}$.
 ```
+which can be rendered correctly by LaTeX or Markdown.
+
+Note that the wrapper `;;...;;` gives inline math and `;;;...;;;` display math. Anything outside of these wrappers will not be touched, so you may still write strict LaTeX formulas with the usual wrappers (`$...$` etc.) if you need to.
 
 You can also select any text and run
- **`Lazy LaTeX: Convert selection to math`** (Ctrl+Alt+M) to turn it into a single LaTeX math expression.
+ **`Lazy LaTeX: Convert selection to math`** (Ctrl+Alt+M) to turn it into a single LaTeX math expression. This may be used to fix bugged LaTeX formulas.
 
-Lazy LaTeX works with **OpenAI**, **Anthropic Claude**, **Gemini (OpenAI-compatible)**, or any OpenAI-style chat API you point it at.
+And for more general tasks, you can write with the wrapper `;;;;...;;;;`:
+
+```tex
+;;;;write a one-sentence summary of the previous paragraph;;;;
+```
+
+Press **Enter**, and it will insert that summary in place of the wrapper.
 
 ------
 
@@ -48,7 +59,7 @@ Lazy LaTeX works with **OpenAI**, **Anthropic Claude**, **Gemini (OpenAI-compati
    - `Lazy-latex › Llm: Provider`
      - `openai` | `anthropic` | `gemini`
    - `Lazy-latex › Llm: Endpoint`
-   - `Lazy-latex › Llm: Api Key`
+   - `Lazy-latex › Llm: Api Key` (Note: you need to get this from your LLM provider.)
    - `Lazy-latex › Llm: Model`
 
    Examples:
@@ -70,10 +81,17 @@ Lazy LaTeX works with **OpenAI**, **Anthropic Claude**, **Gemini (OpenAI-compati
     In a `.tex` or `.md` file:
 
    ```tex
-   This is ;;integral from 0 to 1 of x squared dx;;.
+   Let ;;cal C;; be a locally small category. Then ;;h_A := mathrm Hom(A, -);; is a functor ;;C -> Set (with bold);;. The Yoneda Lemma states that for any functor ;;F : C ->Set;;, there is a bijection ;;mathrm Nat(h_A, F) iso F(A);;. 
    ```
 
-   Press **Enter** → the `;;…;;` is replaced with real LaTeX math.
+   Press **Enter** → all the `;;…;;` wrappers are replaced with real LaTeX math, in consistent notation:
+
+   ```tex
+   Let $\mathcal{C}$ be a locally small category. Then $h_A := \mathrm{Hom}(A, -)$ is a functor $\mathcal{C} \to \mathbf{Set}$. The Yoneda Lemma states that for any functor $F : \mathcal{C} \to \mathbf{Set}$, there is a bijection $\mathrm{Nat}(h_A, F) \cong F(A)$. 
+   ```
+
+   > Let $\mathcal{C}$ be a locally small category. Then $h_A := \mathrm{Hom}(A, -)$ is a functor $\mathcal{C} \to \mathbf{Set}$. The Yoneda Lemma states that for any functor $F : \mathcal{C} \to \mathbf{Set}$, there is a bijection $\mathrm{Nat}(h_A, F) \cong F(A)$. 
+ 
 
 That’s enough to start using it.
 
@@ -92,7 +110,6 @@ Write for example:
 
 ```tex
 The pdf is ;;normal(0, 1);;.
-
 ;;;sum from i=1 to n of a_i;;;
 ```
 
@@ -105,7 +122,6 @@ When you press **Enter** on that line:
 You can turn auto-conversion off or on via:
 
 - `lazy-latex.autoReplace` (default `true`)
-
 
 #### Output delimiters
 
@@ -124,7 +140,7 @@ You can turn auto-conversion off or on via:
 
 ### 2. Manual command: convert selection
 
-If you don’t want wrappers, or you’re editing existing text:
+If you don’t want wrappers, or you’re editing existing text (e.g. **fixing a bugged LaTeX formula**):
 
 1. Select some text (natural language or messy math).
 2. Run the command:
@@ -134,6 +150,46 @@ If you don’t want wrappers, or you’re editing existing text:
 The selection is replaced by a **single LaTeX math expression** (no surrounding `$` or `$$`).
 
 This works in both `.tex` and `.md` files.
+
+------
+
+### 3. Insert-anything wrappers: `;;;;...;;;;`
+
+Sometimes you want more than just a small formula:
+
+- A short summary of the previous paragraph
+- A quick proof sketch
+- A TikZ diagram snippet
+- A Mermaid block in Markdown
+- Some LaTeX boilerplate you don’t remember
+
+For that, use **four semicolons**:
+
+```tex
+;;;;write a one-sentence summary of the previous paragraph;;;;
+```
+
+or:
+
+```tex
+;;;;give a short proof sketch that this operator is self-adjoint;;;;
+```
+
+When you press **Enter**:
+
+- The `;;;;...;;;;` wrapper is removed.
+- The LLM generates **whatever text best matches the instruction**, using:
+  - Your project conventions (`.lazy-latex.md`),
+  - Global instructions (`lazy-latex.prompt.extra`),
+  - Previous lines as context,
+  - The raw current line (with wrappers).
+
+The output is inserted **as-is**:
+
+- In LaTeX: normal LaTeX text / environments / math / TikZ, depending on your instruction.
+- In Markdown: normal Markdown (including code fences, Mermaid, etc., if requested).
+
+`;;;;...;;;;` is a general “LLM macro” that lets you use the model as a context-aware writing assistant inside your document.
 
 ------
 
@@ -175,6 +231,13 @@ If both exist:
 
 Lazy LaTeX tells the LLM explicitly to obey the project file over the global setting.
 
+These instructions apply to **all wrappers**:
+
+- Math wrappers (`;;...;;`, `;;;...;;;`)
+- Insert-anything wrappers (`;;;;...;;;;`)
+
+So you can, for example, enforce vector styles and also say "summaries should be at most two sentences" or "draw all diagrams with TikZ".
+
 ------
 
 ## Context awareness (so it “remembers” nearby text)
@@ -195,8 +258,8 @@ Controls how many **previous lines** are sent as context. For example:
 
 When you press Enter:
 
-- The **full current line** (with `;;...;;` / `;;;...;;;` still present) is sent too.
-- If a line has multiple wrappers, they are sent **together** in one request, so the LLM can keep them consistent.
+- The **full current line** (with `;;...;;` / `;;;...;;;` / `;;;;...;;;;` still present) is sent too.
+- If a line has multiple wrappers, they are sent **together** in one request (for math), so the LLM can keep them consistent.
 
 For example:
 
@@ -219,6 +282,8 @@ Then we have
 ```
 
 All generated in one go, with consistent notation.
+
+The same context is also visible to `;;;;...;;;;` wrappers, which is what makes “summarize the previous paragraph” or “fix the following proof” actually work.
 
 ------
 
@@ -246,7 +311,7 @@ When it’s `true`, before rewriting a line, Lazy LaTeX inserts your original li
   $$
   ```
 
-Handy for debugging or learning how the LLM is interpreting your text.
+Handy for debugging or learning how the LLM is interpreting your text, especially when experimenting with `;;;;...;;;;`.
 
 ------
 
@@ -257,7 +322,7 @@ Open **Settings** → search for `Lazy LaTeX`.
 Key options:
 
 - `lazy-latex.autoReplace` (boolean, default `true`)
-   Automatically convert `;;...;;` and `;;;...;;;` wrappers on Enter in `.tex` / `.md` files.
+   Automatically convert `;;...;;`, `;;;...;;;`, and `;;;;...;;;;` wrappers on Enter in `.tex` / `.md` files.
 - `lazy-latex.llm.provider` (string, default `"openai"`)
    Which provider to use:
   - `"openai"` — OpenAI-compatible chat completion APIs
@@ -284,7 +349,30 @@ Key options:
 - `lazy-latex.output.latex.displayStyle` (string: `"brackets"` | `"dollars"`, default `"brackets"`)
    How to wrap display math in LaTeX: `\[...\]` vs `$$...$$`.
 - `lazy-latex.keepOriginalComment` (boolean, default `false`)
-   Insert the original line as a comment above the generated LaTeX.
+   Insert the original line as a comment above the generated LaTeX / Markdown.
+
+------
+
+## Error handling & debugging
+
+When something goes wrong with the LLM call (bad API key, wrong endpoint/model, rate limits, etc.):
+
+- Lazy LaTeX shows a **friendly error message** explaining the likely cause (authentication, 404, rate limit, server error, or generic failure).
+- Detailed information is written to the **“Lazy LaTeX”** output channel:
+  - Provider (from settings)
+  - Endpoint
+  - Model
+  - HTTP status (when available)
+  - Provider’s error body (truncated)
+
+You can open this via:
+
+- **View → Output → choose “Lazy LaTeX”** in the dropdown.
+
+This applies both to:
+
+- Manual command (`Lazy LaTeX: Convert selection to math`)
+- Auto mode on Enter (math wrappers and `;;;;...;;;;` insert-anything wrappers)
 
 ------
 
@@ -301,6 +389,11 @@ Key options:
 
 ## Notes
 
+- It should go without saying that there is no absolute guarantee that LLM outputs are correct. **Always check the outputs carefully.**
+- Using an LLM API may **incur costs** as specified by your provider, although in our use case the costs should usually be tiny.
 - Auto-replacement only runs in files with language id `latex` or `markdown`.
-- Wrappers on pure comment lines (`% ...` in LaTeX and `<!-- ... -->` in Markdown) are ignored.
+- Wrappers on pure comment lines are ignored:
+  - `% ...` in LaTeX
+  - `<!-- ... -->` in Markdown
 - The extension does **not** store your API key or send telemetry; it just forwards prompts to your configured endpoint.
+- This project is mostly vibe-coded with the help of ChatGPT 5.1 Thinking.
