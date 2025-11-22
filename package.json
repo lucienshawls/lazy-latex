@@ -14,7 +14,7 @@
   "categories": [
     "Other"
   ],
-  "main": "./extension.js",
+  "main": "./src/extension.js",
   "activationEvents": [
     "onLanguage:latex",
     "onLanguage:markdown"

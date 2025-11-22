@@ -5,7 +5,7 @@ const {
   generateAnythingFromInstruction,
 } = require('./llmClient');
 const { getContextBeforeLine } = require('./context');
-const { findWrappersInLine } = require('./src/wrappers');
+const { findWrappersInLine } = require('./wrappers');
 
 /**
  * Get output math delimiters for the given document.
@@ -291,7 +291,7 @@ function activate(context) {
         const lineNumber = change.range.start.line; // line just finished
         try {
           const lineText = event.document.lineAt(lineNumber).text;
-          const wrappers = findMathWrappersInLine(lineText, editor.document.languageId);
+          const wrappers = findWrappersInLine(lineText, editor.document.languageId);
 
           if (!wrappers.length) {
             console.log(
