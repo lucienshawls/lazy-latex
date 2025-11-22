@@ -45,7 +45,7 @@ async function callChatCompletionWithProvider({
   const p = (provider || 'openai').toLowerCase();
 
   // --- OpenAI-compatible branch (default) ---
-    if (p === 'openai' || p === 'gemini') {
+  if (p === 'openai' || p === 'gemini') {
     const body = {
       model,
       messages: [
@@ -67,9 +67,15 @@ async function callChatCompletionWithProvider({
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       console.error(`LLM HTTP error (${p}):`, response.status, text);
-      throw new Error(
+
+      const err = new Error(
         `LLM request failed (${p}): ${response.status} ${response.statusText}`
       );
+      // Attach extra info so higher-level code can show better errors
+      err.status = response.status;
+      err.provider = p;          // 'openai' or 'gemini'
+      err.details = text;        // raw response body (truncated later if needed)
+      throw err;
     }
 
     const data = await response.json();
@@ -87,7 +93,7 @@ async function callChatCompletionWithProvider({
 
     return content.trim();
   }
-  
+
   // --- Anthropic / Claude branch ---
   if (p === 'anthropic') {
     // Expect endpoint like: https://api.anthropic.com/v1/messages
@@ -117,10 +123,16 @@ async function callChatCompletionWithProvider({
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       console.error('LLM HTTP error (anthropic):', response.status, text);
-      throw new Error(
+
+      const err = new Error(
         `LLM request failed (anthropic): ${response.status} ${response.statusText}`
       );
+      err.status = response.status;
+      err.provider = 'anthropic';
+      err.details = text;
+      throw err;
     }
+
 
     const data = await response.json();
 

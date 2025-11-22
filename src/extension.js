@@ -6,6 +6,7 @@ const {
 } = require('./llmClient');
 const { getContextBeforeLine } = require('./context');
 const { findWrappersInLine } = require('./wrappers');
+const { logLlmError, getFriendlyErrorMessage } = require('./logging');
 
 /**
  * Get output math delimiters for the given document.
@@ -99,10 +100,18 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
         originalLineText
       );
     } catch (err) {
+      status.dispose();
       console.error('[Lazy LaTeX] Batch LLM error for line', lineNumber, err);
+      logLlmError(
+        err,
+        `Error in auto math conversion on line ${lineNumber}.`
+      );
+      const msg = getFriendlyErrorMessage(err);
+      vscode.window.showErrorMessage(msg);
       // We still allow "anything" wrappers (if any) to proceed
       latexList = [];
     }
+
 
     for (let idx = 0; idx < mathWrappers.length; idx++) {
       const w = mathWrappers[idx];
@@ -147,13 +156,21 @@ async function processLineForWrappers(document, lineNumber, wrappers) {
           document.languageId
         );
       } catch (err) {
+        status.dispose();
         console.error(
           '[Lazy LaTeX] LLM error in insert-anything mode on line',
           lineNumber,
           err
         );
+        logLlmError(
+          err,
+          `Error in insert-anything mode (;;;;...;;;;) on line ${lineNumber}.`
+        );
+        const msg = getFriendlyErrorMessage(err);
+        vscode.window.showErrorMessage(msg);
         continue;
       }
+
 
       const text = (generated || '').trim();
       if (!text) continue;
@@ -242,14 +259,17 @@ function activate(context) {
         latex = await generateLatexFromText(selectedText, contextText);
       } catch (err) {
         console.error('Lazy LaTeX: LLM error', err);
-        vscode.window.showErrorMessage(
-          'Lazy LaTeX: failed to generate LaTeX. Check your API key / endpoint and try again.'
+        logLlmError(
+          err,
+          'Error in manual conversion command (Lazy LaTeX: Convert selection to math).'
         );
+
+        const msg = getFriendlyErrorMessage(err);
+        vscode.window.showErrorMessage(msg);
         return;
       } finally {
         status.dispose();
       }
-
 
       if (!latex) {
         vscode.window.showErrorMessage(
