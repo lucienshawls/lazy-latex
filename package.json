@@ -47,7 +47,7 @@
             "openai",
             "anthropic"
           ],
-          "markdownDescription": "LLM provider. 'openai' for OpenAI-compatible chat completion APIs; 'anthropic' for Claude (Messages API)."
+          "markdownDescription": "Protocol used by LLM provider. 'openai' for OpenAI-compatible chat completion APIs; 'anthropic' for Claude (Messages API)."
         },
         "lazy-latex.llm.endpoint": {
           "type": "string",
