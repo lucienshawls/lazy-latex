@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.4] - 2025-11-23
+### Added 
+- More instructions in the README for extra LLM model choices. 
+### Changed
+- Better handling of punctuations and whitespaces after displayed math. 
+- Gemini is no longer listed as a provider since it uses the same protocol as OpenAI.
+- Remove redundant bits in the README.
 
 ## [0.1.3] - 2025-11-22
 ### Added
