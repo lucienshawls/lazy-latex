@@ -57,7 +57,7 @@ Press **Enter**, and it will insert that summary in place of the wrapper.
     Set at least:
 
    - `Lazy-latex › Llm: Provider`
-     - `openai` | `anthropic` | `gemini`
+     - `openai` | `anthropic`
    - `Lazy-latex › Llm: Endpoint`
    - `Lazy-latex › Llm: Api Key` (Note: you need to get this from your LLM provider.)
    - `Lazy-latex › Llm: Model`
@@ -73,7 +73,7 @@ Press **Enter**, and it will insert that summary in place of the wrapper.
      - Endpoint: `https://api.anthropic.com/v1/messages`
      - Model: `claude-haiku-4-5` (or another Claude 3 model)
    - **Gemini (OpenAI-compatible)**
-     - Provider: `gemini`
+     - Provider: `openai`
      - Endpoint: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`
      - Model: `gemini-2.5-flash` (or similar)
 

@@ -46,10 +46,9 @@
           "default": "openai",
           "enum": [
             "openai",
-            "anthropic",
-            "gemini"
+            "anthropic"
           ],
-          "markdownDescription": "LLM provider. 'openai' for OpenAI-compatible chat completion APIs; 'anthropic' for Claude (Messages API); 'gemini' for Gemini via its OpenAI-compatible endpoint."
+          "markdownDescription": "LLM provider. 'openai' for OpenAI-compatible chat completion APIs; 'anthropic' for Claude (Messages API)."
         },
         "lazy-latex.llm.endpoint": {
           "type": "string",

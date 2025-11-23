@@ -8,7 +8,6 @@ const vscode = require('vscode');
  *   POST endpoint
  *   { model, messages: [{role, content}, ...], temperature }
  *
- * Later we can branch on `provider` to support Anthropic, Gemini, etc.
  *
  * @param {Object} options
  * @param {string} options.provider     e.g. 'openai' (for future use)
@@ -27,12 +26,14 @@ async function callChatCompletionWithProvider({
   systemPrompt,
   userPrompt,
 }) {
-  if (!apiKey) {
-    vscode.window.showErrorMessage(
-      'Lazy LaTeX: No API key set. Please configure "lazy-latex.llm.apiKey" in Settings.'
-    );
-    throw new Error('Missing API key');
-  }
+  // Decide if this endpoint actually needs an API key.
+  // For localhost / 127.0.0.1 we allow empty apiKey (e.g. Ollama).
+  const lowerEndpoint = (endpoint || '').toLowerCase();
+  const isLocalhost =
+    lowerEndpoint.startsWith('http://localhost') ||
+    lowerEndpoint.startsWith('https://localhost') ||
+    lowerEndpoint.startsWith('http://127.0.0.1') ||
+    lowerEndpoint.startsWith('https://127.0.0.1');
 
   if (!endpoint || !model) {
     vscode.window.showErrorMessage(
@@ -41,11 +42,18 @@ async function callChatCompletionWithProvider({
     throw new Error('Missing endpoint or model');
   }
 
+  if (!isLocalhost && !apiKey) {
+    vscode.window.showErrorMessage(
+      'Lazy LaTeX: No API key set. Please configure "lazy-latex.llm.apiKey" in Settings.'
+    );
+    throw new Error('Missing API key');
+  }
+
   // Normalize provider
   const p = (provider || 'openai').toLowerCase();
 
   // --- OpenAI-compatible branch (default) ---
-  if (p === 'openai' || p === 'gemini') {
+  if (p === 'openai') {
     const body = {
       model,
       messages: [
@@ -55,12 +63,18 @@ async function callChatCompletionWithProvider({
       temperature: 0,
     };
 
+
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+
+    if (apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
+
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: headers,
       body: JSON.stringify(body),
     });
 
@@ -73,7 +87,7 @@ async function callChatCompletionWithProvider({
       );
       // Attach extra info so higher-level code can show better errors
       err.status = response.status;
-      err.provider = p;          // 'openai' or 'gemini'
+      err.provider = p;          // 'openai'
       err.details = text;        // raw response body (truncated later if needed)
       throw err;
     }
