@@ -104,6 +104,7 @@
     },
     "scripts": {
         "package": "vsce package --no-dependencies --githubBranch master",
+        "lint:md": "markdownlint-cli2 '*.md' --fix",
         "lint": "prettier --write . && eslint --fix .",
         "pretest": "pnpm run lint",
         "test": "vscode-test"
